@@ -32,6 +32,7 @@ import time
 
 import Defaults
 import Errors
+import FilterParser
 import Util
 from TMDA.Queue.Queue import Queue
 
@@ -75,8 +76,8 @@ class Queue:
 
     def initQueue(self):
         """Initialize the queue with the given parameters (see __init__)."""
-	if not Q.exists():
-	    raise Errors.QueueError, 'Pending Queue does not exist, exiting.'
+        if not Q.exists():
+            raise Errors.QueueError, 'Pending Queue does not exist, exiting.'
 
         # Replace any `-' in the message list with those messages provided
         # via standard input.  (Since it's pointless to call it twice,
@@ -95,13 +96,13 @@ class Queue:
 
         if not self.msgs and not wantedstdin:
             self.msgs = Q.fetch_ids()
-    
+
         self.msgs.sort()
         if self.descending:
             self.msgs.reverse()
 
         return self
-    
+
     def Print(self, *strings):
         """Print one or more strings on self.stdout."""
         for s in strings:
@@ -124,8 +125,8 @@ class Queue:
     def listPendingIds(self):
         """Return the list of still pending messages."""
         return self.listIds()
-                       
-    
+
+
     ## Cache related functions (-C option)
     def _loadCache(self):
         """Load the message cache from disk."""
@@ -154,9 +155,9 @@ class Queue:
     def _saveCache(self):
         """Save the cache on disk."""
         if self.cache:
-	    # Trim tail entries off if necessary, and then save the
-	    # cache in ASCII format.
-	    self.msgcache = self.msgcache[:Defaults.PENDING_CACHE_LEN]
+            # Trim tail entries off if necessary, and then save the
+            # cache in ASCII format.
+            self.msgcache = self.msgcache[:Defaults.PENDING_CACHE_LEN]
             Util.pickleit(self.msgcache, Defaults.PENDING_CACHE, 0)
 
     ## Threshold (-Y and -O options)
@@ -194,7 +195,7 @@ class Queue:
         """This is a callback for inherited classes."""
         self.showMessage(M)
         return 1
-            
+
     def showMessage(self, M):
         """Display a message."""
         if self.terse:
@@ -211,12 +212,12 @@ class Queue:
     ## Main loop
     def mainLoop(self):
         """Process all the messages."""
-    
+
         self.total = len(self.msgs)
         self.count = 0
-        
+
         self._loadCache()
-            
+
         for msgid in self.msgs:
             self.count = self.count + 1
             try:
@@ -249,7 +250,7 @@ class Queue:
                 continue
 
             self.endProcessMessage(M)
-            
+
         self._saveCache()
 
 class InteractiveQueue(Queue):
@@ -306,9 +307,13 @@ class InteractiveQueue(Queue):
         """Get the user input."""
         try:
             message = '([p]ass / [s]how / [r]el / [d]el'
-            if Defaults.PENDING_WHITELIST_APPEND:
+            if (Defaults.PENDING_WHITELIST_APPEND or
+                (Defaults.DB_PENDING_WHITELIST_APPEND and
+                 Defaults.DB_CONNECTION)):
                 message = message + ' / [w]hite'
-            if Defaults.PENDING_BLACKLIST_APPEND:
+            if (Defaults.PENDING_BLACKLIST_APPEND or
+                (Defaults.DB_PENDING_BLACKLIST_APPEND and
+                 Defaults.DB_CONNECTION)):
                 message = message + ' / [b]lack'
             message = message + ' / [q]uit) [%s]: '
             inp = raw_input(message % self.dispose_def)
@@ -343,7 +348,7 @@ class InteractiveQueue(Queue):
                 self.count = self.count - 1
                 self.msgs.insert(self.msgs.index(M.msgid), M.msgid)
                 self._delCache(M.msgid)
-    
+
 
 
 
@@ -355,9 +360,9 @@ class Message:
     def __init__(self, msgid, recipient = None, fullParse = False):
         self.msgid = msgid
         if not Q.find_message(self.msgid):
-	    raise Errors.MessageError, '%s not found!' % self.msgid
+            raise Errors.MessageError, '%s not found!' % self.msgid
         self.msgobj = Q.fetch_message(self.msgid, fullParse=fullParse)
-	self.recipient = recipient
+        self.recipient = recipient
         if self.recipient is None:
             self.recipient = self.msgobj.get('x-tmda-recipient')
         self.return_path = parseaddr(self.msgobj.get('return-path'))[1]
@@ -371,6 +376,16 @@ class Message:
         if Defaults.PENDING_RELEASE_APPEND:
             Util.append_to_file(self.append_address,
                                 Defaults.PENDING_RELEASE_APPEND)
+        if Defaults.DB_PENDING_RELEASE_APPEND and Defaults.DB_CONNECTION:
+            _username = Defaults.USERNAME.lower()
+            _hostname = Defaults.HOSTNAME.lower()
+            _recipient = _username + '@' + _hostname
+            params = FilterParser.create_sql_params(
+                recipient=_recipient, username=_username,
+                hostname=_hostname, sender=self.append_address)
+            Util.db_insert(Defaults.DB_CONNECTION,
+                           Defaults.DB_PENDING_RELEASE_APPEND,
+                           params)
         timestamp, pid = self.msgid.split('.')
         # Remove Return-Path: to avoid duplicates.
         del self.msgobj['return-path']
@@ -387,14 +402,14 @@ class Message:
         # Add the date when confirmed in a header.
         del self.msgobj['X-TMDA-Released']
         self.msgobj['X-TMDA-Released'] = Util.make_date()
-	# For messages released via tmda-cgi, add the IP address and
-	# browser info of the releaser for easier tracing.
-	if os.environ.has_key('REMOTE_ADDR') and \
-		os.environ.has_key('HTTP_USER_AGENT'):
-	    cgi_header = "%s (%s)" % (os.environ.get('REMOTE_ADDR'), 
-				      os.environ.get('HTTP_USER_AGENT'))
-	    del self.msgobj['X-TMDA-CGI']
-	    self.msgobj['X-TMDA-CGI'] = cgi_header
+        # For messages released via tmda-cgi, add the IP address and
+        # browser info of the releaser for easier tracing.
+        if os.environ.has_key('REMOTE_ADDR') and \
+                os.environ.has_key('HTTP_USER_AGENT'):
+            cgi_header = "%s (%s)" % (os.environ.get('REMOTE_ADDR'),
+                                      os.environ.get('HTTP_USER_AGENT'))
+            del self.msgobj['X-TMDA-CGI']
+            self.msgobj['X-TMDA-CGI'] = cgi_header
         # Reinject the message to the original envelope recipient.
         Util.sendmail(self.show(), self.recipient, self.return_path)
 
@@ -403,35 +418,71 @@ class Message:
         if Defaults.PENDING_DELETE_APPEND:
             Util.append_to_file(self.append_address,
                                 Defaults.PENDING_DELETE_APPEND)
-	Q.delete_message(self.msgid)
+        if Defaults.DB_PENDING_DELETE_APPEND and Defaults.DB_CONNECTION:
+            _username = Defaults.USERNAME.lower()
+            _hostname = Defaults.HOSTNAME.lower()
+            _recipient = _username + '@' + _hostname
+            params = FilterParser.create_sql_params(
+                recipient=_recipient, username=_username,
+                hostname=_hostname, sender=self.append_address)
+            Util.db_insert(Defaults.DB_CONNECTION,
+                           Defaults.DB_PENDING_DELETE_APPEND,
+                           params)
+        Q.delete_message(self.msgid)
 
     def whitelist(self):
         """Whitelist the message sender."""
-        if Defaults.PENDING_WHITELIST_APPEND:
-            Util.append_to_file(self.append_address,
-                                Defaults.PENDING_WHITELIST_APPEND)
+        if (Defaults.PENDING_WHITELIST_APPEND or
+            (Defaults.DB_PENDING_WHITELIST_APPEND and Defaults.DB_CONNECTION)):
+            if Defaults.PENDING_WHITELIST_APPEND:
+                Util.append_to_file(self.append_address,
+                                    Defaults.PENDING_WHITELIST_APPEND)
+            if Defaults.DB_PENDING_WHITELIST_APPEND and Defaults.DB_CONNECTION:
+                _username = Defaults.USERNAME.lower()
+                _hostname = Defaults.HOSTNAME.lower()
+                _recipient = _username + '@' + _hostname
+                params = FilterParser.create_sql_params(
+                    recipient=_recipient, username=_username,
+                    hostname=_hostname, sender=self.append_address)
+                Util.db_insert(Defaults.DB_CONNECTION,
+                               Defaults.DB_PENDING_WHITELIST_APPEND,
+                               params)
             if Defaults.PENDING_WHITELIST_RELEASE == 1:
                 self.release()
         else:
-            raise Errors.ConfigError, \
-                  'PENDING_WHITELIST_APPEND not defined!'
+            raise Errors.ConfigError(
+                'PENDING_WHITELIST_APPEND (or DB_CONNECTION+'
+                'DB_PENDING_WHITELIST_APPEND) not defined!')
 
     def blacklist(self):
         """Blacklist the message sender."""
-        if Defaults.PENDING_BLACKLIST_APPEND:
-            Util.append_to_file(self.append_address,
-                                Defaults.PENDING_BLACKLIST_APPEND)
+        if (Defaults.PENDING_BLACKLIST_APPEND or
+            (Defaults.DB_PENDING_BLACKLIST_APPEND and Defaults.DB_CONNECTION)):
+            if Defaults.PENDING_BLACKLIST_APPEND:
+                Util.append_to_file(self.append_address,
+                                    Defaults.PENDING_BLACKLIST_APPEND)
+            if Defaults.DB_PENDING_BLACKLIST_APPEND and Defaults.DB_CONNECTION:
+                _username = Defaults.USERNAME.lower()
+                _hostname = Defaults.HOSTNAME.lower()
+                _recipient = _username + '@' + _hostname
+                params = FilterParser.create_sql_params(
+                    recipient=_recipient, username=_username,
+                    hostname=_hostname, sender=self.append_address)
+                Util.db_insert(Defaults.DB_CONNECTION,
+                               Defaults.DB_PENDING_BLACKLIST_APPEND,
+                               params)
         else:
-            raise Errors.ConfigError, \
-                  'PENDING_BLACKLIST_APPEND not defined!'
+            raise Errors.ConfigError(
+                'PENDING_BLACKLIST_APPEND (or DB_CONNECTION+'
+                'DB_PENDING_BLACKLIST_APPEND) not defined!')
 
     def pager(self):
         Util.pager(self.show())
-	return ''
+        return ''
 
     def show(self):
         """Return the string representation of a message."""
-	return Util.msg_as_string(self.msgobj)
+        return Util.msg_as_string(self.msgobj)
 
     def getDate(self):
         timestamp = self.msgid.split('.')[0]
@@ -464,7 +515,7 @@ class Message:
         else:
             # return raw list of headers
             return [Util.decode_header(hdr) for hdr in terse_hdrs]
-        
+
     def getConfirmAddress(self):
         if not self.confirm_accept_address:
             if self.recipient:

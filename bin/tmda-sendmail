@@ -32,10 +32,7 @@ import sys
 try:
     import paths
 except ImportError:
-    # Prepend /usr/lib/python2.x/site-packages/TMDA/pythonlib
-    sitedir = os.path.join(sys.prefix, 'lib', 'python'+sys.version[:3],
-                           'site-packages', 'TMDA', 'pythonlib')
-    sys.path.insert(0, sitedir)
+    pass
 
 from TMDA import Version
 
@@ -50,7 +47,7 @@ def usage(code, msg=''):
     if msg:
         print msg
     sys.exit(code)
-    
+
 try:
     opts, args = getopt.getopt(sys.argv[1:],
                                'Vhvimte:f:p:o:B:F:EJx', ['version',
@@ -61,18 +58,14 @@ except getopt.error, msg:
 for opt, arg in opts:
     if opt in ('-h', '--help'):
         usage(0)
-    if opt == '-V':
+    elif opt == '-V':
         print Version.ALL
         sys.exit()
-    if opt == '--version':
+    elif opt == '--version':
         print Version.TMDA
         sys.exit()
-    elif opt in list('BpvixmeoEJ'):
-        pass 
     elif opt == '-t':
         header_recipients = True
-    elif opt == '-f':
-        pass
     elif opt == '-F':
         os.environ['NAME'] = arg
 

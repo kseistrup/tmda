@@ -39,19 +39,16 @@ try:
     import os
     import sys
     import traceback
-    
+
     try:
         import paths
     except ImportError:
-        # Prepend /usr/lib/python2.x/site-packages/TMDA/pythonlib
-        sitedir = os.path.join(sys.prefix, 'lib', 'python'+sys.version[:3],
-                               'site-packages', 'TMDA', 'pythonlib')
-        sys.path.insert(0, sitedir)
+        pass
 
     program = sys.argv[0]
     execdir = os.path.dirname(os.path.abspath(program))
     execfile(os.path.join(execdir, 'tmda-rfilter'))
-    
+
 except KeyboardInterrupt:
     pass
 
@@ -72,7 +69,7 @@ except:
 
     except SystemExit:
         raise
-    
+
     except:
         try:
             failure_file = os.path.expanduser('~/TMDA_DELIVERY_FAILURE')

@@ -51,7 +51,7 @@ PID = str(os.getpid())
 # General exit status codes which should be understood by all MTAs.
 # Defined so we can raise exit codes within TMDA modules without
 # having to create an MTA instance.
-EX_OK = 0                               
+EX_OK = 0
 EX_TEMPFAIL = 75
 
 HOMEDIR = os.path.expanduser('~')
@@ -197,7 +197,7 @@ if not vars().has_key('ALLOW_MODE_640'):
 # MAIL_TRANSPORT
 # Final delivery method for all outgoing mail (server and client).
 # Possible values include:
-# 
+#
 # "smtp"
 #    Deliver messages by handing them off to an SMTP server (i.e,
 #    smarthost).  Be sure that the "SMTPHOST" variable (see below) is
@@ -376,7 +376,7 @@ if not vars().has_key('CGI_URL'):
 
 # CGI_VIRTUALUSER
 # Set this variable to True if you wish to enable tmda-cgi's "virtual
-# user" support (http://tmda.net/tmda-cgi/virtual.html).
+# user" support (http://tmda.sourceforge.net/tmda-cgi/virtual.html).
 #
 # Default is False (disabled)
 if not vars().has_key('CGI_VIRTUALUSER'):
@@ -409,7 +409,7 @@ if not vars().has_key('CONFIRM_ADDRESS'):
 # No default
 if not vars().has_key('CONFIRM_APPEND'):
     CONFIRM_APPEND = None
-    
+
 # CONFIRM_CC
 # An optional e-mail address which will be sent a copy of any message
 # that triggers a confirmation request.
@@ -587,7 +587,7 @@ if env_FILTER_OUTGOING:
     FILTER_OUTGOING = env_FILTER_OUTGOING
 elif not vars().has_key('FILTER_OUTGOING'):
     FILTER_OUTGOING = os.path.join(DATADIR, 'filters', 'outgoing')
-    
+
 # FILTER_BOUNCE_CC
 # An optional e-mail address which will be sent a copy of any message
 # that bounces because of a match in FILTER_INCOMING.
@@ -647,7 +647,7 @@ if not vars().has_key('ACTION_INCOMING'):
 
 # ACTION_FAIL_DATED
 # Specifies how incoming messages should be disposed of if they are sent
-# to a dated address that does not properly verify.  
+# to a dated address that does not properly verify.
 # Possible values include:
 #
 # "bounce"
@@ -692,14 +692,14 @@ if not vars().has_key('ACTION_FAIL_DATED'):
 #     '1w':     'bounce',  # ...it expired more than 1w ago, then bounce
 #     '30d':    'hold',    # ...it expired more than 30d ago, then hold
 #     '1Y':     'drop'}    # ...it expired more than 1Y ago, then drop
-# 
+#
 # Default is "confirm"
 if not vars().has_key('ACTION_EXPIRED_DATED'):
     ACTION_EXPIRED_DATED = "confirm"
 
 # ACTION_FAIL_SENDER
-# Specifies how incoming messages should be disposed of if they are sent 
-# to a sender address, but were not sent from the correct sender, and 
+# Specifies how incoming messages should be disposed of if they are sent
+# to a sender address, but were not sent from the correct sender, and
 # fail to verify.
 # Possible values include:
 #
@@ -806,7 +806,6 @@ if not vars().has_key('ACTION_OUTGOING'):
     ACTION_OUTGOING = "dated"
 
 # FINGERPRINT
-#
 # A list containing one or more message headers whose values should be
 # used to create a "fingerprint" for the message.  If the header value
 # is 'body' (all-lowercase), the message body content is used instead
@@ -844,12 +843,13 @@ if not vars().has_key('ACTION_OUTGOING'):
 # values only (right hand side of Header:).
 #
 # The following header would then be added to the outgoing message:
+#
 # X-TMDA-Fingerprint: vDBoOHtIUE6VniJguxJ+w2fR5bU
 #
 # No default
 if not vars().has_key('FINGERPRINT'):
     FINGERPRINT = None
-    
+
 # FULLNAME
 # Your full name.
 #
@@ -879,7 +879,7 @@ if not vars().has_key('HMAC_BYTES'):
 # Defaults to the fully qualified domain name of the localhost.
 if not vars().has_key('HOSTNAME'):
     HOSTNAME = Util.gethostname()
-    
+
 # LOGFILE_DEBUG
 # Filename which uncaught exceptions should be written to.
 #
@@ -891,7 +891,7 @@ if not vars().has_key('HOSTNAME'):
 # No default.
 if not vars().has_key('LOGFILE_DEBUG'):
     LOGFILE_DEBUG = None
-    
+
 # LOGFILE_INCOMING
 # Filename which incoming delivery (i.e, tmda-filter) summaries should
 # be written to.
@@ -1131,7 +1131,7 @@ if not vars().has_key('PENDING_CLEANUP_ODDS'):
 # Default is ~/.tmda/.pendingcache
 if not vars().has_key('PENDING_CACHE'):
     PENDING_CACHE = os.path.join(DATADIR, '.pendingcache')
-    
+
 # PENDING_CACHE_LEN
 # An integer which specifies the maximum number of entries held by
 # PENDING_CACHE.  Make sure this is greater than the number of
@@ -1155,6 +1155,36 @@ if not vars().has_key('PENDING_CACHE_LEN'):
 if not vars().has_key('PENDING_BLACKLIST_APPEND'):
     PENDING_BLACKLIST_APPEND = None
 
+# DB_PENDING_BLACKLIST_APPEND
+# SQL INSERT statement to be used to insert blacklisted sender addresses
+# into a SQL database. The Python DB API will take care of properly
+# quoting parameters that are strings.
+#
+# Requires a valid DB_CONNECTION object.
+#
+# Available substitution parameters are:
+#
+# %(recipient)s  - USERNAME@HOSTNAME
+# %(username)s   - USERNAME
+# %(hostname)s   - HOSTNAME
+# %(sender)s     - sender's address (envelope sender or X-Primary-Address)
+#
+# Examples:
+#
+# DB_PENDING_BLACKLIST_APPEND = """
+#  INSERT INTO blacklist (user_email, address)
+#       VALUES (%(recipient)s, %(sender)s)"""
+#
+# DB_PENDING_BLACKLIST_APPEND = """
+#  INSERT INTO wildcard_list (uid, address, action)
+#       SELECT uid, %(sender)s, 'drop'
+#         FROM users
+#        WHERE users.email = %(recipient)s"""
+#
+# Default is None
+if not vars().has_key('DB_PENDING_BLACKLIST_APPEND'):
+    DB_PENDING_BLACKLIST_APPEND = None
+
 # PENDING_DELETE_APPEND
 # Filename to which a sender's e-mail address should be automatically
 # appended when a message is "deleted" by tmda-pending.  tmda-filter's
@@ -1170,6 +1200,36 @@ if not vars().has_key('PENDING_BLACKLIST_APPEND'):
 if not vars().has_key('PENDING_DELETE_APPEND'):
     PENDING_DELETE_APPEND = None
 
+# DB_PENDING_DELETE_APPEND
+# SQL INSERT statement to be used to insert deleted sender addresses
+# into a SQL database. The Python DB API will take care of properly
+# quoting parameters that are strings.
+#
+# Requires a valid DB_CONNECTION object.
+#
+# Available substitution parameters are:
+#
+# %(recipient)s  - USERNAME@HOSTNAME
+# %(username)s   - USERNAME
+# %(hostname)s   - HOSTNAME
+# %(sender)s     - sender's address (envelope sender or X-Primary-Address)
+#
+# Examples:
+#
+# DB_PENDING_DELETE_APPEND = """
+#  INSERT INTO blacklist (user_email, address)
+#       VALUES (%(recipient)s, %(sender)s)"""
+#
+# DB_PENDING_DELETE_APPEND = """
+#  INSERT INTO wildcard_list (uid, address, action)
+#       SELECT uid, %(sender)s, 'confirm'
+#         FROM users
+#        WHERE users.email = %(recipient)s"""
+#
+# Default is None
+if not vars().has_key('DB_PENDING_DELETE_APPEND'):
+    DB_PENDING_DELETE_APPEND = None
+
 # PENDING_RELEASE_APPEND
 # Filename to which a sender's e-mail address should be automatically
 # appended when a message is "released" by tmda-pending.
@@ -1182,6 +1242,36 @@ if not vars().has_key('PENDING_DELETE_APPEND'):
 # No default
 if not vars().has_key('PENDING_RELEASE_APPEND'):
     PENDING_RELEASE_APPEND = None
+
+# DB_PENDING_RELEASE_APPEND
+# SQL INSERT statement to be used to insert released sender addresses
+# into a SQL database. The Python DB API will take care of properly
+# quoting parameters that are strings.
+#
+# Requires a valid DB_CONNECTION object.
+#
+# Available substitution parameters are:
+#
+# %(recipient)s  - USERNAME@HOSTNAME
+# %(username)s   - USERNAME
+# %(hostname)s   - HOSTNAME
+# %(sender)s     - sender's address (envelope sender or X-Primary-Address)
+#
+# Examples:
+#
+# DB_PENDING_RELEASE_APPEND = """
+#  INSERT INTO whitelist (user_email, address)
+#       VALUES (%(recipient)s, %(sender)s)"""
+#
+# DB_PENDING_RELEASE_APPEND = """
+#  INSERT INTO wildcard_list (uid, address, action)
+#       SELECT uid, %(sender)s, 'accept'
+#         FROM users
+#        WHERE users.email = %(recipient)s"""
+#
+# Default is None
+if not vars().has_key('DB_PENDING_RELEASE_APPEND'):
+    DB_PENDING_RELEASE_APPEND = None
 
 # PENDING_WHITELIST_APPEND
 # Filename to which a sender's e-mail address should be appended
@@ -1196,8 +1286,38 @@ if not vars().has_key('PENDING_RELEASE_APPEND'):
 if not vars().has_key('PENDING_WHITELIST_APPEND'):
     PENDING_WHITELIST_APPEND = None
 
+# DB_PENDING_WHITELIST_APPEND
+# SQL INSERT statement to be used to insert whitelisted sender addresses
+# into a SQL database. The Python DB API will take care of properly
+# quoting parameters that are strings.
+#
+# Requires a valid DB_CONNECTION object.
+#
+# Available substitution parameters are:
+#
+# %(recipient)s  - USERNAME@HOSTNAME
+# %(username)s   - USERNAME
+# %(hostname)s   - HOSTNAME
+# %(sender)s     - sender's address (envelope sender or X-Primary-Address)
+#
+# Examples:
+#
+# DB_PENDING_WHITELIST_APPEND = """
+#  INSERT INTO whitelist (user_email, address)
+#       VALUES (%(recipient)s, %(sender)s)"""
+#
+# DB_PENDING_WHITELIST_APPEND = """
+#  INSERT INTO wildcard_list (uid, address, action)
+#       SELECT uid, %(sender)s, 'accept'
+#         FROM users
+#        WHERE users.email = %(recipient)s"""
+#
+# Default is None
+if not vars().has_key('DB_PENDING_WHITELIST_APPEND'):
+    DB_PENDING_WHITELIST_APPEND = None
+
 # PENDING_WHITELIST_RELEASE
-# An option detailing the action taken when 'Whitelist' is the 
+# An option detailing the action taken when 'Whitelist' is the
 # current action in tmda-pending or tmda-cgi
 #
 # Available options:
@@ -1478,7 +1598,7 @@ if not vars().has_key('TMDAINJECT'):
 # No default.
 if not vars().has_key('MAIL_FOLLOWUP_TO'):
     MAIL_FOLLOWUP_TO = None
-    
+
 # SUMMARY_HEADERS
 # A list containing one or more message headers that should be
 # displayed by tmda-pending's interactive mode. Listed headers are
@@ -1517,7 +1637,7 @@ if not vars().has_key('USERNAME'):
 # internationalized strings as values.
 #
 # Examples:
-# 
+#
 # TIMEOUT_UNITS = {
 #       'Y' : "anos",
 #       'M' : "meses",
@@ -1557,6 +1677,7 @@ if not vars().has_key('TIMEOUT_UNITS'):
 # Subject: X-TMDA   sender      Re: You're fired!
 #
 # In all cases, the resulting subject will simply be:
+#
 # Subject: Re: You're fired!
 #
 # Default is False (turned off)

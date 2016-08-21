@@ -29,7 +29,8 @@ import email.utils
 import fileinput
 import fnmatch
 import os
-import popen2
+import subprocess
+from subprocess import PIPE, STDOUT # Make these available in Util
 import re
 import socket
 import stat
@@ -37,6 +38,7 @@ import sys
 import tempfile
 import textwrap
 import time
+import optparse
 
 import Errors
 
@@ -55,6 +57,49 @@ def gethostname():
     if not hostname:
         hostname = socket.getfqdn()
     return hostname
+
+
+def urlsplit(urlstring, scheme='', allow_fragments=True):
+    '''Modified urlparse.urlsplit that handles IPv6 addresses.'''
+    import urlparse
+
+    result = urlparse.urlsplit(urlstring, scheme, allow_fragments)
+    if '[' in result.netloc:
+        return IP6SplitResult(result)
+    return result
+
+class IP6SplitResult(object):
+    '''Result type for urlsplit when the URL uses an IPv6 address. This is
+    intended to be compatible with the regular urlsplit result, but beware of
+    subtle differences. For example, this is not derived from tuple. Indexing
+    and unpacking are supported, however.'''
+    # Host matcher matches IP-literal in RFC3986, but it's not very strict and
+    # doesn't match IPvFuture addresses. It does match addresses that use the
+    # IPv4 dotted-quad format for the last 32 bits.
+    _host_matcher = re.compile(r'\[([\da-fA-F:.]+)\]')
+
+    def __init__(self, result):
+        self._result = result
+
+        # urlsplit gets hostname and port wrong. Replace them. Everything else
+        # is looked up in self._result.
+        self.hostname = self._host_matcher.search(result.netloc).group(1)
+
+        if ']:' in result.netloc:
+            self.port = int(result.netloc.split(']:', 1)[1])
+        else:
+            self.port = None
+
+    def __getattr__(self, name):
+        return getattr(self._result, name)
+
+    # Special method lookup doesn't go through __getattr__ (or
+    # through __getattribute__).
+    def __getitem__(self, key):
+        return self._result[key]
+
+    def __repr__(self):
+        return repr(self._result)
 
 
 def getfullname():
@@ -333,62 +378,34 @@ def file_to_list(file):
     return list
 
 
-def pipecmd(command, *strings):
-    """Run a child process, returning opened pipes for communication.
-
-    command is the program to execute as a sub-process.
-
-    *strings are optional pieces of data to write to command.
-
-    return_status will just return the exit status of the command..
-
-    Based on code from getmail
-    <URL:http://www.qcc.sk.ca/~charlesc/software/getmail-2.0/>
-    Copyright (C) 2001 Charles Cazabon, and licensed under the GNU
-    General Public License version 2.
+def runcmd(cmd, instr=None, stdout=None, stderr=None):
+    """Run a command, wait for it to complete, and return a tuple of
+    (return value, stdout text, stderr text). instr is a string to
+    pass as input. stdout and stderr can take the same forms as their
+    subprocess.Popen equivalents.
     """
-    try:
-        popen2._cleanup()
-        cmd = popen2.Popen3(command, 1, bufsize=-1)
-        cmdout, cmdin, cmderr = cmd.fromchild, cmd.tochild, cmd.childerr
-        if strings:
-            # Write to the tochild file object.
-            for s in strings:
-                cmdin.write(s)
-            cmdin.flush()
-            cmdin.close()
-        # Read from the childerr object; command will block until exit.
-        err = cmderr.read().strip()
-        cmderr.close()
-        # Read from the fromchild object.
-        out = cmdout.read().strip()
-        cmdout.close()
-        # Get exit status from the wait() member function.
-        r = cmd.wait()
-        # If exit status is non-zero, raise an exception with data
-        # from childerr.
-        if r:
-            if os.WIFEXITED(r):
-                exitcode = 'exited %i' % os.WEXITSTATUS(r)
-                exitsignal = ''
-            elif os.WIFSIGNALED(r):
-                exitcode = 'abnormal exit'
-                exitsignal = 'signal %i' % os.WTERMSIG(r)
-            else:
-                # Stopped, etc.
-                exitcode = 'no exit?'
-                exitsignal = ''
-            raise IOError, 'command "%s" %s %s (%s)' \
-                  % (command, exitcode, exitsignal, err or '')
-        elif err:
-            # command wrote something to stderr.
-            print err
-        if out:
-            # command wrote something to stdout.
-            print out
-    except Exception, txt:
-        raise IOError, \
-              'failure delivering message to command "%s" (%s)' % (command, txt)
+    use_shell = False
+    if isinstance(cmd, basestring):
+        use_shell = True
+
+    process = subprocess.Popen(cmd, stdin=PIPE, stdout=stdout, stderr=stderr,
+                               shell=use_shell)
+    (stdoutdata, stderrdata) = process.communicate(instr)
+
+    return (process.returncode, stdoutdata, stderrdata)
+
+
+def runcmd_checked(cmd, instr=None, stdout=None, stderr=None):
+    """Version of runcmd that doesn't return the exit code or
+    signal, but raises an exception for errors and signals.
+    """
+    (r, stdoutdata, stderrdata) = runcmd(cmd, instr, stdout, stderr)
+    if r > 0:
+        raise StandardError('command %r exited with error %d' % (cmd, r))
+    elif r < 0:
+        raise StandardError('command %r exited with signal %d' % (cmd, -r))
+
+    return (stdoutdata, stderrdata)
 
 
 def writefile(contents, fullpathname):
@@ -427,13 +444,13 @@ def pager(str):
         # try to locate less or more if $PAGER is not set
         for prog in ('less', 'more'):
             path = os.popen('which ' + prog).read()
-            if path <> '':
+            if path != '':
                 pager = path
                 break
     try:
-	os.popen(pager, 'w').write(str)
+        os.popen(pager, 'w').write(str)
     except IOError:
-	return
+        return
 
 
 def normalize_sender(sender):
@@ -508,18 +525,18 @@ def confirm_append_address(xp, rp):
 def msg_from_file(fp, fullParse=False):
     """Read a file and parse its contents into a Message object model.
     Replacement for email.message_from_file().
-    
+
     We use the HeaderParser subclass instead of Parser to avoid trying
     to parse the message body, instead setting the payload to the raw
     body as a string.  This is faster, and also helps us avoid
     problems trying to parse spam with broken MIME bodies."""
     from email.message import Message
     if fullParse:
-	from email.parser import Parser
-	msg = Parser(Message).parse(fp)
+        from email.parser import Parser
+        msg = Parser(Message).parse(fp)
     else:
-	from email.parser import HeaderParser
-	msg = HeaderParser(Message).parse(fp)
+        from email.parser import HeaderParser
+        msg = HeaderParser(Message).parse(fp)
     #msg.header_parsed = True
     return msg
 
@@ -534,7 +551,7 @@ def msg_as_string(msg, maxheaderlen=False, mangle_from_=False, unixfrom=False):
 
     maxheaderlen specifies the longest length for a non-continued
     header.  Disabled by default.  RFC 2822 recommends 78.
-    
+
     mangle_from_ escapes any line in the body that begins with "From"
     with ">".  Useful when writing to Unix mbox files.  Default is
     False.
@@ -587,11 +604,11 @@ def sendmail(msgstr, envrecip, envsender):
     if Defaults.MAIL_TRANSPORT == 'sendmail':
         # You can avoid the shell by passing a tuple of arguments as
         # the command instead of a string.  This will cause the
-        # popen2.Popen3() code to execvp() "/usr/bin/sendmail" with
+        # subprocess.Popen() code to execvp() "/usr/bin/sendmail" with
         # these arguments exactly, with no trip through any shell.
         cmd = (Defaults.SENDMAIL_PROGRAM, '-i',
                '-f', envsender, '--', envrecip)
-        pipecmd(cmd, msgstr)
+        runcmd_checked(cmd, msgstr)
     elif Defaults.MAIL_TRANSPORT == 'smtp':
         import SMTP
         server = SMTP.Connection()
@@ -1046,3 +1063,86 @@ class Debugable:
     def set_nodebug():
         self.level = 0
 
+
+class HelpFormatter(optparse.IndentedHelpFormatter):
+    '''
+    The available formatters in optparse cannot preserve formatting. This makes
+    tables (for example) impossible to format properly.
+
+    This class is a help formatter that preserves empty lines and lines that
+    begin with whitespace. Other lines are re-wrapped as usual.
+    '''
+    _dont_wrap = re.compile(r'^(\s|$)')
+
+    @classmethod
+    def _wrap(cls, text, width):
+        def do_wrappable():
+            if wrappable:
+                result.extend(textwrap.wrap('\n'.join(wrappable), width))
+                wrappable[:] = []
+
+        lines = text.split('\n')
+        wrappable = []
+        result = []
+        for line in lines:
+            if cls._dont_wrap.match(line):
+                do_wrappable()
+                result.append(line)
+            else:
+                wrappable.append(line)
+
+        do_wrappable()
+        return result
+
+    # format_option is taken (slightly modified) from optparse.py in Python 2.6
+    # under the following license.
+    #
+    # Copyright (c) 2001-2006 Gregory P. Ward.  All rights reserved.
+    # Copyright (c) 2002-2006 Python Software Foundation.  All rights reserved.
+    #
+    # Redistribution and use in source and binary forms, with or without
+    # modification, are permitted provided that the following conditions are
+    # met:
+    #
+    #   * Redistributions of source code must retain the above copyright
+    #     notice, this list of conditions and the following disclaimer.
+    #
+    #   * Redistributions in binary form must reproduce the above copyright
+    #     notice, this list of conditions and the following disclaimer in the
+    #     documentation and/or other materials provided with the distribution.
+    #
+    #   * Neither the name of the author nor the names of its
+    #     contributors may be used to endorse or promote products derived from
+    #     this software without specific prior written permission.
+    #
+    # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+    # IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+    # TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+    # PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR
+    # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+    # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+    # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+    # PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+    # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+    # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    def format_option(self, option):
+        result = []
+        opts = self.option_strings[option]
+        opt_width = self.help_position - self.current_indent - 2
+        if len(opts) > opt_width:
+            opts = "%*s%s\n" % (self.current_indent, "", opts)
+            indent_first = self.help_position
+        else:                       # start help on same line as opts
+            opts = "%*s%-*s  " % (self.current_indent, "", opt_width, opts)
+            indent_first = 0
+        result.append(opts)
+        if option.help:
+            help_text = self.expand_default(option)
+            help_lines = self._wrap(help_text, self.help_width)
+            result.append("%*s%s\n" % (indent_first, "", help_lines[0]))
+            result.extend(["%*s%s\n" % (self.help_position, "", line)
+                           for line in help_lines[1:]])
+        elif opts[-1] != "\n":
+            result.append("\n")
+        return "".join(result)

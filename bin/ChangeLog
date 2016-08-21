@@ -1,3 +1,24 @@
+2011-04-02  Kevin Goodsell  <kevin-opensource@omegacrash.net>
+
+	* Remove pythonlib because it is obsolete.
+
+2011-03-15  Kevin Goodsell  <kevin-opensource@omegacrash.net>
+
+	* tmda-ofmipd: Replace tlslite with OpenSSL.
+	* tmda-ofmipd: New authentication system with support for PAM and
+	arbitrary chaining of authentication methods. -F/--fallback removed;
+	just supply multiple authentication options instead.
+	* tmda-ofmipd: Use Python logging module instead of prints.
+	* tmda-ofmipd: Remove extra % in help output.
+	* tmda-ofmipd: Use new runcmd instead of pipecmd.
+	* tmda-address: Fix a typo in help output.
+
+2007-11-20  Stephen Warren  <swarren@wwwdotorg.org>
+
+	* tmda-ofmipd: Add --tls=localoptional option. This acts like
+	--tls=optional for connections from localhost, and like --tls=on
+	for connections from elsewhere.
+
 2007-02-25  Stephen Warren  <swarren@wwwdotorg.org>
 
 	* tmda-ofmipd: Implemented --tls, --ssl, --ssl-key, --ssl-crt options.
