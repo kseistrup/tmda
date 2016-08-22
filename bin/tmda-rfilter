@@ -26,6 +26,13 @@ from optparse import OptionParser, make_option
 import os
 import sys
 import stat
+#import email
+import fileinput
+import string
+import time
+
+from cStringIO import StringIO
+from email.utils import parseaddr, getaddresses
 
 try:
     import paths
@@ -33,7 +40,14 @@ except ImportError:
     pass
 
 from TMDA import Version
-
+from TMDA import Defaults
+from TMDA import Address
+from TMDA import Cookie
+from TMDA import Errors
+from TMDA import FilterParser
+from TMDA import MTA
+from TMDA import Util
+from TMDA.Queue.Queue import Queue
 
 # If -S / --vhome-script flag is given on command line, use it to determine the
 # virtual user's home directory and set $HOME to that, so that '~' refers to
@@ -72,7 +86,7 @@ opt_list = [
                 help= \
 """Full pathname to a directory containing custom TMDA templates."""),
 
-   make_option("-I", "--filter-incoming-file",
+    make_option("-I", "--filter-incoming-file",
                 metavar="FILE", dest="filter_incoming",
                 help= \
 """Full pathname to your incoming filter file.  Overrides
@@ -161,24 +175,6 @@ if homesticky:
     sys.stdout.write('tmda-filter: home directory is sticky.')
     sys.exit(75)
 
-
-from TMDA import Defaults
-from TMDA import Address
-from TMDA import Cookie
-from TMDA import Errors
-from TMDA import FilterParser
-from TMDA import MTA
-from TMDA import Util
-from TMDA.Queue.Queue import Queue
-
-from cStringIO import StringIO
-from email.utils import parseaddr, getaddresses
-import email
-import fileinput
-import string
-import time
-
-
 # Just check Defaults.FILTER_INCOMING for syntax errors and possible
 # matches, and then exit.
 if opts.filter_match:
@@ -261,11 +257,11 @@ if envelope_sender == '':
 # This is often the case when the message is sent between local users
 # on a Sendmail system.
 elif (Defaults.MAIL_TRANSFER_AGENT == 'sendmail' and
-      len(string.split(envelope_sender,'@')) == 1):
+      len(string.split(envelope_sender, '@')) == 1):
     envelope_sender = envelope_sender + '@' + Util.gethostname()
 # Ditto for envelope_recipient
 if (Defaults.MAIL_TRANSFER_AGENT == 'sendmail' and
-    len(string.split(envelope_recipient,'@')) == 1):
+        len(string.split(envelope_recipient, '@')) == 1):
     envelope_recipient = envelope_recipient + '@' + Util.gethostname()
 
 # recipient_address is the original address the message was sent to,
@@ -273,8 +269,8 @@ if (Defaults.MAIL_TRANSFER_AGENT == 'sendmail' and
 # envelope_recipient if we are not running under a qmail virtualdomain.
 recipient_address = envelope_recipient
 if (Defaults.MAIL_TRANSFER_AGENT == 'qmail' and
-    Defaults.USEVIRTUALDOMAINS and
-    os.path.exists(Defaults.VIRTUALDOMAINS)):
+        Defaults.USEVIRTUALDOMAINS and
+        os.path.exists(Defaults.VIRTUALDOMAINS)):
     # Parse the virtualdomains control file; see qmail-send(8) for
     # syntax rules.  All this because qmail doesn't store the original
     # envelope recipient in the environment.
@@ -337,10 +333,10 @@ def logit(action, msg):
         from TMDA import MessageLogger
         logger = MessageLogger.MessageLogger(Defaults.LOGFILE_INCOMING,
                                              msgin,
-                                             envsender = envelope_sender,
-                                             envrecip = recipient_address,
-                                             msg_size = orig_msgin_size,
-                                             action_msg = action_msg)
+                                             envsender=envelope_sender,
+                                             envrecip=recipient_address,
+                                             msg_size=orig_msgin_size,
+                                             action_msg=action_msg)
         logger.write()
     if Defaults.ACTION_HEADER_INCOMING and recipient_address:
         del msgin['X-TMDA-Action']
@@ -353,12 +349,12 @@ def autorespond_to_sender(sender):
     if envelope_sender == '<>' or \
            envelope_sender == '#@[]' or \
            envelope_sender.lower().startswith('mailer-daemon'):
-        logit ('NOREPLY', '(envelope sender = %s)' % envelope_sender)
+        logit('NOREPLY', '(envelope sender = %s)' % envelope_sender)
         return 0
     # Majordomo messages don't give any indication that they are
     # auto-responses. tsk, tsk.
     if envelope_sender.lower().startswith('majordomo'):
-        logit ('NOREPLY', '(Majordomo)')
+        logit('NOREPLY', '(Majordomo)')
         return 0
     # Try and detect an auto-response.
     guilty_header = None
@@ -384,7 +380,7 @@ def autorespond_to_sender(sender):
         if precedence and precedence.lower() in ('bulk', 'junk', 'list'):
             guilty_header = 'Precedence: %s' % precedence
     if guilty_header:
-        logit ('NOREPLY', '(%s)' % guilty_header)
+        logit('NOREPLY', '(%s)' % guilty_header)
         return 0
     # The above methods have been verified to detect list messages
     # from the following mailing list management packages/services:
@@ -510,11 +506,11 @@ def verify_confirm_cookie(confirm_cookie, confirm_action):
                                                   confirm_pid, confirm_action)
         # Accept the message only if the HMAC can be verified and the
         # message exists in the pending queue.
-        if not (confirm_hmac == new_confirm_hmac):
+        if not confirm_hmac == new_confirm_hmac:
             do_default_action(Defaults.ACTION_INVALID_CONFIRMATION.lower(),
                               'action_invalid_confirmation',
                               'bounce_invalid_confirmation.txt')
-        elif not (Q.find_message(confirmed_mailid)):
+        elif not Q.find_message(confirmed_mailid):
             do_default_action(Defaults.ACTION_MISSING_PENDING.lower(),
                               'action_missing_pending',
                               'bounce_missing_pending.txt')
@@ -558,7 +554,7 @@ def verify_confirm_cookie(confirm_cookie, confirm_action):
         new_confirm_hmac = Cookie.confirmationmac(confirm_timestamp,
                                                   confirm_pid, 'done')
         # Accept the message only if the HMAC can be verified.
-        if not (confirm_hmac == new_confirm_hmac):
+        if not confirm_hmac == new_confirm_hmac:
             # Ask for confirmation instead of bouncing or dropping the
             # message in case the sender inadvertently had an
             # X-TMDA-Confirm-Done field in this message, such as when
@@ -586,19 +582,19 @@ def dispose_expired_dated(cookie_date):
     havedefault = False
     # go through all of the times, and convert them into seconds
     # default becomes "0", saving the symbolic name logging
-    for k,v in Defaults.ACTION_EXPIRED_DATED.iteritems():
+    for (k, v) in Defaults.ACTION_EXPIRED_DATED.iteritems():
         if k != 'default':
-            templist.append((Util.seconds(k),v,k))
+            templist.append((Util.seconds(k), v, k))
         else:
             # Default is False.  The number represents the number of
             # seconds that the address has been expired.  A negative
             # number would imply a non-expired address, so zero will
             # suffice as a default.
-            templist.append((0,v,k))
+            templist.append((0, v, k))
             havedefault = True
     # If no default specfied, assume "confirm"
     if havedefault is False:
-        templist.append((0,'confirm','default'))
+        templist.append((0, 'confirm', 'default'))
     templist.sort()
     templist.reverse()
     # calculate how long ago the address expired
@@ -648,7 +644,7 @@ def verify_dated_cookie(dated_cookie):
                 dispose_expired_dated(cookie_date)
 
 
-def verify_sender_cookie(sender_address,sender_cookie):
+def verify_sender_cookie(sender_address, sender_cookie):
     """Verify a sender cookie."""
     try:
         addr = Address.Factory(envelope_recipient)
@@ -727,14 +723,16 @@ def bouncegen(mode, template=None):
             # create the url for tmda-cgi release.
             if Defaults.CGI_VIRTUALUSER:
                 # include the current uid, recipient address, and release cookie.
-                confirm_accept_url = '%s?%s&%s&%s' %(Defaults.CGI_URL,
-                                                     os.geteuid(),
-                                                     recipient_address,
-                                                     Cookie.make_confirm_cookie(
-                    TIMESTAMP,
-                    Defaults.PID,
-                    'accept'
-                    ))
+                confirm_accept_url = '%s?%s&%s&%s' % (
+                    Defaults.CGI_URL,
+                    os.geteuid(),
+                    recipient_address,
+                    Cookie.make_confirm_cookie(
+                        TIMESTAMP,
+                        Defaults.PID,
+                        'accept'
+                    )
+                )
             else:
                 # include the current euid and release cookie.
                 confirm_accept_url = '%s?%s.%s' %(Defaults.CGI_URL, os.geteuid(),
@@ -789,18 +787,18 @@ def main():
     # The list of sender e-mail addresses comes from the envelope
     # sender, the "From:" header, the "Reply-To:" header, and possibly
     # the "X-Primary-Address" header.
-    sender_dict = { envelope_sender: None }
+    sender_dict = {envelope_sender: None}
     confirm_append_address = Util.confirm_append_address(x_primary_address,
                                                          envelope_sender)
     if confirm_append_address and confirm_append_address != envelope_sender:
         sender_dict[confirm_append_address] = None
     from_list = getaddresses(msgin.get_all('from', []))
     replyto_list = getaddresses(msgin.get_all('reply-to', []))
-    for list in from_list, replyto_list:
-        for a in list:
+    for thelist in (from_list, replyto_list):
+        for a in thelist:
             emaddy = a[1]
             sender_dict[emaddy] = None
-    sender_list = [ addr.lower() for addr in sender_dict.keys() ]
+    sender_list = [addr.lower() for addr in sender_dict.keys()]
     # Process confirmation messages first.
     confirm_done_hdr = msgin.get('x-tmda-confirm-done')
     if confirm_done_hdr:
@@ -819,7 +817,7 @@ def main():
     # Dispose of the message now if there was a filter file match.
     # Log the action along with and the matching line in the filter
     # file that caused it.
-    if action in ('bounce','reject'):
+    if action in ('bounce', 'reject'):
         if Defaults.FILTER_BOUNCE_CC:
             send_cc(Defaults.FILTER_BOUNCE_CC)
         if option:
@@ -828,12 +826,12 @@ def main():
         else:
             logit('BOUNCE', '(%s)' % matching_line)
             bouncegen('bounce', 'bounce_incoming.txt')
-    elif action in ('drop','exit','stop'):
+    elif action in ('drop', 'exit', 'stop'):
         if Defaults.FILTER_DROP_CC:
             send_cc(Defaults.FILTER_DROP_CC)
         logit('DROP', '(%s)' % matching_line)
         mta.stop()
-    elif action in ('accept','deliver','ok'):
+    elif action in ('accept', 'deliver', 'ok'):
         if option:
             logit('DELIVER', '(%s)' % (matching_line + '=' + option))
             mta.deliver(msgin, option)

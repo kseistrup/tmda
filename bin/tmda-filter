@@ -38,7 +38,7 @@ fp = sys.stdout
 
 try:
     import os
-    import sys
+    #import sys
     import traceback
 
     try:

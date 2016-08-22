@@ -64,7 +64,7 @@ if opts.full_version:
 def keygen():
     # Use the kernel's random number generator.
     if os.path.exists(opts.device):
-        key = open(opts.device,'rb').read(20)
+        key = open(opts.device, 'rb').read(20)
         return binascii.hexlify(key)
     #elif sys.platform == 'win32':
         # The Windows equivalent of polling /dev/urandom is to call the Windows

@@ -222,7 +222,7 @@ class PamAuthenticator(Authenticator):
             import PAM
         except ImportError:
             raise ImportError('Python PAM '
-                '(http://www.pangalactic.org/PyPAM/) required.')
+                              '(http://www.pangalactic.org/PyPAM/) required.')
 
         Authenticator.__init__(self)
         self._service = service
@@ -353,7 +353,7 @@ class RemoteAuthenticator(Authenticator):
                 if len(pieces) > 2:
                     try:
                         val_port = int(pieces[2])
-                        if not (0 <= val_port <= 0xFFFF):
+                        if not 0 <= val_port <= 0xFFFF:
                             raise ValueError('Not a valid port number')
                     except ValueError, e:
                         logger.error('Invalid port in ipauthmap file, line %d',
@@ -392,8 +392,11 @@ class ImapAuthenticator(RemoteAuthenticator):
         return False
 
     def __repr__(self):
-        return '%s(%r, %r, %r)' % (self.__class__.__name__, self._host,
-               self._port, self._secure)
+        return '%s(%r, %r, %r)' % (
+            self.__class__.__name__,
+            self._host,
+            self._port, self._secure
+        )
 
 class Pop3Authenticator(RemoteAuthenticator):
     def __init__(self, host, port, use_apop):
@@ -419,8 +422,11 @@ class Pop3Authenticator(RemoteAuthenticator):
         return False
 
     def __repr__(self):
-        return '%s(%r, %r, %r)' % (self.__class__.__name__, self._host,
-               self._port, self._use_apop)
+        return '%s(%r, %r, %r)' % (
+            self.__class__.__name__,
+            self._host,
+            self._port, self._use_apop
+        )
 
 class LdapAuthenticator(RemoteAuthenticator):
     def __init__(self, host, port, dn):
@@ -453,8 +459,11 @@ class LdapAuthenticator(RemoteAuthenticator):
         return False
 
     def __repr__(self):
-        return '%s(%r, %r, %r)' % (self.__class__.__name__, self._host,
-               self._port, self._dn)
+        return '%s(%r, %r, %r)' % (
+            self.__class__.__name__,
+            self._host,
+            self._port, self._dn
+        )
 
 class AuthOptions(object):
     _opt_map = {
@@ -656,9 +665,9 @@ class SMTPSession(asynchat.async_chat):
         result = []
         allowed_auths = self.auth_methods()
         if allowed_auths:
-            result.append('AUTH %s' %
-                ' '.join([s.upper() for s in allowed_auths]))
-
+            result.append(
+                'AUTH %s' % ' '.join([s.upper() for s in allowed_auths])
+            )
         return result
 
     def recv_header_extra(self):
@@ -857,8 +866,8 @@ class SMTPSession(asynchat.async_chat):
             verify = self.verify_cram_md5(self.__auth_resp1,
                                           self.__auth_cram_md5_ticket)
         elif sasl == 'login':
-            verify =  self.verify_login(self.__auth_resp1,
-                                        self.__auth_resp2)
+            verify = self.verify_login(self.__auth_resp1,
+                                       self.__auth_resp2)
         if verify == 1:
             self.auth_notify_succeed()
         else:
@@ -911,7 +920,7 @@ class SMTPSession(asynchat.async_chat):
         rh = []
         rh.append('from %s' % (arg))
         if ((arg.lower() != self.__peername.lower()) and
-            (self.__peername.lower() != self.__peerip)):
+                (self.__peername.lower() != self.__peerip)):
             rh.append('(%s [%s])' % (self.__peername, self.__peerip))
         else:
             rh.append('(%s)' % (self.__peerip))
@@ -1101,7 +1110,7 @@ class SecureSMTPSession(SMTPSession):
     def valid_command(self, cmd, arg):
         if self._ssl_state == 'required':
             valid_cmds = ['NOOP', 'EHLO', 'STARTTLS', 'QUIT']
-            if not (cmd in valid_cmds):
+            if not cmd in valid_cmds:
                 self.push('530 Must issue a STARTTLS command first')
                 return False
 
@@ -1253,7 +1262,7 @@ def process_message_vdomain(peer, mailfrom, rcpttos, data, auth_username):
     # --pure-proxy was specified and the .tmda/config file is
     # missing.
     if opts.pure_proxy and not os.path.exists(os.path.join
-                                         (vhomedir, '.tmda', 'config')):
+                                              (vhomedir, '.tmda', 'config')):
         sendmail_program = os.environ.get('TMDA_SENDMAIL_PROGRAM') \
                            or '/usr/sbin/sendmail'
         inject_cmd = [sendmail_program, '-f', mailfrom, '-i', '--'] + rcpttos
@@ -1333,13 +1342,14 @@ def sig_handler(sig_num, frame):
 
 
 # Constants
-defaultauthports = { 'imap': 143,
-                     'imaps': 993,
-                     'apop': 110,
-                     'pop3': 110,
-                     'ldap': 389,
-                     # 'pop3s': 995,
-                     }
+defaultauthports = {
+    'imap': 143,
+    'imaps': 993,
+    'apop': 110,
+    'pop3': 110,
+    'ldap': 389,
+    # 'pop3s': 995,
+}
 
 NEWLINE = '\n'
 EMPTYSTRING = ''
@@ -1740,12 +1750,12 @@ def main():
             sys.stdout = os.fdopen(1, 'w')
             sys.stderr = os.fdopen(2, 'w')
 
-            signal.signal(signal.SIGTSTP, signal.SIG_IGN);
-            signal.signal(signal.SIGTTOU, signal.SIG_IGN);
-            signal.signal(signal.SIGTTIN, signal.SIG_IGN);
+            signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+            signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+            signal.signal(signal.SIGTTIN, signal.SIG_IGN)
 
-            signal.signal(signal.SIGHUP, sig_handler);
-            signal.signal(signal.SIGTERM, sig_handler);
+            signal.signal(signal.SIGHUP, sig_handler)
+            signal.signal(signal.SIGTERM, sig_handler)
 
     # Start the event loop
     try:

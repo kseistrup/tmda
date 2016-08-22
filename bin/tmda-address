@@ -125,7 +125,7 @@ from TMDA import Address
 
 def main():
     try:
-        tagged_address = Address.Factory(tag = tag).create(opts.address, option).address
+        tagged_address = Address.Factory(tag=tag).create(opts.address, option).address
     except ValueError, msg:
         parser.error(msg)
 

@@ -32,9 +32,12 @@ try:
 except ImportError:
     pass
 
-import email
+#import email
 
 from TMDA import Version
+from TMDA import Pending
+from TMDA import Errors
+
 
 # option parsing
 
@@ -103,8 +106,8 @@ msggroup = OptionGroup(parser, "Messages")
 
 # general
 gengroup.add_option("--vhome-script",
-                     metavar="SCRIPT", dest="vhomescript",
-                     help= \
+                    metavar="SCRIPT", dest="vhomescript",
+                    help= \
 """Full pathname of SCRIPT that prints a virtual email user's home
 directory on standard output.  tmda-pending will read that path and
 set $HOME to that path so that '~' expansion works properly for
@@ -118,14 +121,14 @@ obtained by the '--vhome-domain' option, if defined, and if not,
 an attempt to figure it out automatically.""")
 
 gengroup.add_option("--vhome-user",
-                     metavar="USER", dest="vhomeuser",
-                     help= \
+                    metavar="USER", dest="vhomeuser",
+                    help= \
 """The user name to optionally pass to the program specified
 in the '--vhome-script' option, above.""")
 
 gengroup.add_option("--vhome-domain",
-                     metavar="DOMAIN", dest="vhomedomain",
-                     help= \
+                    metavar="DOMAIN", dest="vhomedomain",
+                    help= \
 """The domain name to optionally pass to the program specified
 in the '--vhome-script' option, above.""")
 
@@ -246,7 +249,7 @@ if opts.full_version:
     sys.exit()
 
 if opts.config_file:
-     os.environ['TMDARC'] = opts.config_file
+    os.environ['TMDARC'] = opts.config_file
 
 if opts.pretend or opts.interactive:
     opts.verbose = True
@@ -259,7 +262,7 @@ else:
     threshold = None
 
 if opts.vhomescript:
-    """Set $HOME to the recipient's (virtual user) home directory."""
+    # Set $HOME to the recipient's (virtual user) home directory.
     user = None
     if opts.vhomeuser:
         user = opts.vhomeuser
@@ -287,18 +290,15 @@ if opts.vhomescript:
     if message != '':
         sys.stdout.write('missing:%s\n' % message)
         sys.exit(1)
-    cmd = "%s '%s' '%s'" % ( opts.vhomescript, user, domain )
+    cmd = "%s '%s' '%s'" % (opts.vhomescript, user, domain)
     fpin = os.popen(cmd)
     vuserhomedir = fpin.read().strip()
     if fpin.close() is None:
         os.environ['HOME'] = vuserhomedir
         os.chdir(vuserhomedir)
     else:
-        sys.stdout.write('invocation failed: %s\n' % ( cmd, ))
+        sys.stdout.write('invocation failed: %s\n' % (cmd,))
         sys.exit(1)
-
-from TMDA import Pending
-from TMDA import Errors
 
 
 def main():
@@ -308,18 +308,18 @@ def main():
         QueueObject = Pending.Queue
     try:
         q = QueueObject(
-            msgs = args,
-            cache = opts.cache,
-            command_recipient = opts.command_recipient,
-            descending = opts.descending,
-            dispose = opts.dispose,
-            older = opts.older,
-            summary = opts.summary,
-            terse = opts.terse,
-            threshold = threshold,
-            verbose = opts.verbose,
-            younger = opts.younger,
-            pretend = opts.pretend
+            msgs=args,
+            cache=opts.cache,
+            command_recipient=opts.command_recipient,
+            descending=opts.descending,
+            dispose=opts.dispose,
+            olde=opts.older,
+            summary=opts.summary,
+            terse=opts.terse,
+            threshold=threshold,
+            verbose=opts.verbose,
+            younger=opts.younger,
+            pretend=opts.pretend
             ).initQueue()
         q.mainLoop()
     except Errors.QueueError, obj:
